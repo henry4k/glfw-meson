@@ -1,3 +1,18 @@
+option('glfw_build_examples',
+    type: 'boolean',
+    description: 'Build the GLFW example programs',
+    value: false)
+
+option('glfw_build_tests',
+    type: 'boolean',
+    description: 'Build the GLFW test programs',
+    value: false)
+
+option('glfw_build_docs',
+    type: 'boolean',
+    description: 'Build the GLFW documentation',
+    value: false)
+
 option('glfw_vulkan_static',
     type: 'boolean',
     description: 'Use the Vulkan loader statically linked into application',

@@ -58,7 +58,18 @@ endif
 
 subdir('deps')
 subdir('src')
-subdir('tests')
+
+if get_option('glfw_build_tests')
+    subdir('tests')
+endif
+
+if get_option('glfw_build_examples')
+    subdir('examples')
+endif
+
+if get_option('glfw_build_docs')
+    subdir('docs')
+endif
 
 
 #--------------------------------------------------------------------
