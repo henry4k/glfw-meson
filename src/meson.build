@@ -17,9 +17,7 @@ sources = ['internal.h',
            'window.c']
 
 if host_system == 'linux' or host_system == 'bsd'
-    dependencies += [cc.find_library('rt', required: false),
-                     cc.find_library('m', required: false),
-                     cc.find_library('dl', required: false)]
+    dependencies += [rt_dep, math_dep, cc.find_library('dl', required: false)]
 endif
 
 

@@ -6,7 +6,7 @@ cc = meson.get_compiler('c')
 compiler_id = cc.get_id()
 
 math_dep = cc.find_library('m', required: false)
-rt_dep = cc.find_library('m', required: false)
+rt_dep = cc.find_library('rt', required: false)
 threads_dep = dependency('threads')
 
 
