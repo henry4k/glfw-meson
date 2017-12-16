@@ -47,7 +47,8 @@ static int getGLXFBConfigAttrib(GLXFBConfig fbconfig, int attrib)
 
 // Return the GLXFBConfig most closely matching the specified hints
 //
-static GLFWbool chooseGLXFBConfig(const _GLFWfbconfig* desired, GLXFBConfig* result)
+static GLFWbool chooseGLXFBConfig(const _GLFWfbconfig* desired,
+                                  GLXFBConfig* result)
 {
     GLXFBConfig* nativeConfigs;
     _GLFWfbconfig* usableConfigs;
@@ -87,6 +88,16 @@ static GLFWbool chooseGLXFBConfig(const _GLFWfbconfig* desired, GLXFBConfig* res
         {
             if (trustWindowBit)
                 continue;
+        }
+
+        if (desired->transparent)
+        {
+            XVisualInfo* vi = glXGetVisualFromFBConfig(_glfw.x11.display, n);
+            if (vi)
+            {
+                u->transparent = _glfwIsVisualTransparentX11(vi->visual);
+                XFree(vi);
+            }
         }
 
         u->redBits = getGLXFBConfigAttrib(n, GLX_RED_SIZE);
@@ -622,7 +633,8 @@ GLFWbool _glfwCreateContextGLX(_GLFWwindow* window,
 
 // Returns the Visual and depth of the chosen GLXFBConfig
 //
-GLFWbool _glfwChooseVisualGLX(const _GLFWctxconfig* ctxconfig,
+GLFWbool _glfwChooseVisualGLX(const _GLFWwndconfig* wndconfig,
+                              const _GLFWctxconfig* ctxconfig,
                               const _GLFWfbconfig* fbconfig,
                               Visual** visual, int* depth)
 {
@@ -645,7 +657,7 @@ GLFWbool _glfwChooseVisualGLX(const _GLFWctxconfig* ctxconfig,
     }
 
     *visual = result->visual;
-    *depth = result->depth;
+    *depth  = result->depth;
 
     XFree(result);
     return GLFW_TRUE;

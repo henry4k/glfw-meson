@@ -100,27 +100,63 @@
 #ifndef DISPLAY_DEVICE_ACTIVE
  #define DISPLAY_DEVICE_ACTIVE 0x00000001
 #endif
+#ifndef _WIN32_WINNT_WINBLUE
+ #define _WIN32_WINNT_WINBLUE 0x0602
+#endif
 
 #if WINVER < 0x0601
-typedef struct tagCHANGEFILTERSTRUCT
+typedef struct
 {
     DWORD cbSize;
     DWORD ExtStatus;
-
-} CHANGEFILTERSTRUCT, *PCHANGEFILTERSTRUCT;
+} CHANGEFILTERSTRUCT;
 #ifndef MSGFLT_ALLOW
  #define MSGFLT_ALLOW 1
 #endif
 #endif /*Windows 7*/
 
+#if WINVER < 0x0600
+#define DWM_BB_ENABLE 0x00000001
+#define DWM_BB_BLURREGION 0x00000002
+typedef struct
+{
+    DWORD dwFlags;
+    BOOL fEnable;
+    HRGN hRgnBlur;
+    BOOL fTransitionOnMaximized;
+} DWM_BLURBEHIND;
+#endif /*Windows Vista*/
+
 #ifndef DPI_ENUMS_DECLARED
-typedef enum PROCESS_DPI_AWARENESS
+typedef enum
 {
     PROCESS_DPI_UNAWARE = 0,
     PROCESS_SYSTEM_DPI_AWARE = 1,
     PROCESS_PER_MONITOR_DPI_AWARE = 2
 } PROCESS_DPI_AWARENESS;
+typedef enum
+{
+    MDT_EFFECTIVE_DPI = 0,
+    MDT_ANGULAR_DPI = 1,
+    MDT_RAW_DPI = 2,
+    MDT_DEFAULT = MDT_EFFECTIVE_DPI
+} MONITOR_DPI_TYPE;
 #endif /*DPI_ENUMS_DECLARED*/
+
+// HACK: Define versionhelpers.h functions manually as MinGW lacks the header
+BOOL IsWindowsVersionOrGreater(WORD major, WORD minor, WORD sp);
+#define IsWindowsVistaOrGreater()                              \
+    IsWindowsVersionOrGreater(HIBYTE(_WIN32_WINNT_VISTA),      \
+                              LOBYTE(_WIN32_WINNT_VISTA), 0)
+#define IsWindows7OrGreater()                                  \
+    IsWindowsVersionOrGreater(HIBYTE(_WIN32_WINNT_WIN7),       \
+                              LOBYTE(_WIN32_WINNT_WIN7), 0)
+#define IsWindows8OrGreater()                                  \
+    IsWindowsVersionOrGreater(HIBYTE(_WIN32_WINNT_WIN8),       \
+                              LOBYTE(_WIN32_WINNT_WIN8), 0)
+#define IsWindows8Point1OrGreater()                            \
+    IsWindowsVersionOrGreater(HIBYTE(_WIN32_WINNT_WINBLUE),    \
+                              LOBYTE(_WIN32_WINNT_WINBLUE), 0)
 
 // HACK: Define macros that some xinput.h variants don't
 #ifndef XINPUT_CAPS_WIRELESS
@@ -172,19 +208,23 @@ typedef HRESULT (WINAPI * PFN_DirectInput8Create)(HINSTANCE,DWORD,REFIID,LPVOID*
 
 // user32.dll function pointer typedefs
 typedef BOOL (WINAPI * PFN_SetProcessDPIAware)(void);
-typedef BOOL (WINAPI * PFN_ChangeWindowMessageFilterEx)(HWND,UINT,DWORD,PCHANGEFILTERSTRUCT);
-#define _glfw_SetProcessDPIAware _glfw.win32.user32.SetProcessDPIAware
-#define _glfw_ChangeWindowMessageFilterEx _glfw.win32.user32.ChangeWindowMessageFilterEx
+typedef BOOL (WINAPI * PFN_ChangeWindowMessageFilterEx)(HWND,UINT,DWORD,CHANGEFILTERSTRUCT*);
+#define SetProcessDPIAware _glfw.win32.user32.SetProcessDPIAware_
+#define ChangeWindowMessageFilterEx _glfw.win32.user32.ChangeWindowMessageFilterEx_
 
 // dwmapi.dll function pointer typedefs
 typedef HRESULT (WINAPI * PFN_DwmIsCompositionEnabled)(BOOL*);
 typedef HRESULT (WINAPI * PFN_DwmFlush)(VOID);
+typedef HRESULT(WINAPI * PFN_DwmEnableBlurBehindWindow)(HWND,const DWM_BLURBEHIND*);
 #define DwmIsCompositionEnabled _glfw.win32.dwmapi.IsCompositionEnabled
 #define DwmFlush _glfw.win32.dwmapi.Flush
+#define DwmEnableBlurBehindWindow _glfw.win32.dwmapi.EnableBlurBehindWindow
 
 // shcore.dll function pointer typedefs
 typedef HRESULT (WINAPI * PFN_SetProcessDpiAwareness)(PROCESS_DPI_AWARENESS);
-#define _glfw_SetProcessDpiAwareness _glfw.win32.shcore.SetProcessDpiAwareness
+typedef HRESULT (WINAPI * PFN_GetDpiForMonitor)(HMONITOR,MONITOR_DPI_TYPE,UINT*,UINT*);
+#define SetProcessDpiAwareness _glfw.win32.shcore.SetProcessDpiAwareness_
+#define GetDpiForMonitor _glfw.win32.shcore.GetDpiForMonitor_
 
 typedef VkFlags VkWin32SurfaceCreateFlagsKHR;
 
@@ -235,6 +275,8 @@ typedef struct _GLFWwindowWin32
     GLFWbool            frameAction;
     GLFWbool            iconified;
     GLFWbool            maximized;
+    // Whether to enable framebuffer transparency on DWM
+    GLFWbool            transparent;
 
     // The last received cursor position, regardless of source
     int                 lastCursorPosX, lastCursorPosY;
@@ -278,19 +320,21 @@ typedef struct _GLFWlibraryWin32
 
     struct {
         HINSTANCE                       instance;
-        PFN_SetProcessDPIAware          SetProcessDPIAware;
-        PFN_ChangeWindowMessageFilterEx ChangeWindowMessageFilterEx;
+        PFN_SetProcessDPIAware          SetProcessDPIAware_;
+        PFN_ChangeWindowMessageFilterEx ChangeWindowMessageFilterEx_;
     } user32;
 
     struct {
         HINSTANCE                       instance;
         PFN_DwmIsCompositionEnabled     IsCompositionEnabled;
         PFN_DwmFlush                    Flush;
+        PFN_DwmEnableBlurBehindWindow   EnableBlurBehindWindow;
     } dwmapi;
 
     struct {
         HINSTANCE                       instance;
-        PFN_SetProcessDpiAwareness      SetProcessDpiAwareness;
+        PFN_SetProcessDpiAwareness      SetProcessDpiAwareness_;
+        PFN_GetDpiForMonitor            GetDpiForMonitor_;
     } shcore;
 
 } _GLFWlibraryWin32;
@@ -303,8 +347,8 @@ typedef struct _GLFWmonitorWin32
     // This size matches the static size of DISPLAY_DEVICE.DeviceName
     WCHAR               adapterName[32];
     WCHAR               displayName[32];
-    char                publicAdapterName[64];
-    char                publicDisplayName[64];
+    char                publicAdapterName[32];
+    char                publicDisplayName[32];
     GLFWbool            modesPruned;
     GLFWbool            modeChanged;
 
@@ -348,6 +392,7 @@ typedef struct _GLFWmutexWin32
 
 GLFWbool _glfwRegisterWindowClassWin32(void);
 void _glfwUnregisterWindowClassWin32(void);
+GLFWbool _glfwIsCompositionEnabledWin32(void);
 
 WCHAR* _glfwCreateWideStringFromUTF8Win32(const char* source);
 char* _glfwCreateUTF8FromWideStringWin32(const WCHAR* source);
@@ -359,4 +404,5 @@ void _glfwInitTimerWin32(void);
 void _glfwPollMonitorsWin32(void);
 GLFWbool _glfwSetVideoModeWin32(_GLFWmonitor* monitor, const GLFWvidmode* desired);
 void _glfwRestoreVideoModeWin32(_GLFWmonitor* monitor);
+void _glfwGetMonitorContentScaleWin32(HMONITOR handle, float* xscale, float* yscale);
 

@@ -152,15 +152,13 @@ void _glfwInputError(int code, const char* format, ...)
 
     if (format)
     {
-        int count;
         va_list vl;
 
         va_start(vl, format);
-        count = vsnprintf(description, sizeof(description), format, vl);
+        vsnprintf(description, sizeof(description), format, vl);
         va_end(vl);
 
-        if (count < 0)
-            description[sizeof(description) - 1] = '\0';
+        description[sizeof(description) - 1] = '\0';
     }
     else
         strcpy(description, getErrorString(code));
@@ -207,12 +205,13 @@ GLFWAPI int glfwInit(void)
         return GLFW_FALSE;
     }
 
-    if (!_glfwPlatformCreateMutex(&_glfw.errorLock))
+    if (!_glfwPlatformCreateMutex(&_glfw.errorLock) ||
+        !_glfwPlatformCreateTls(&_glfw.errorSlot) ||
+        !_glfwPlatformCreateTls(&_glfw.contextSlot))
+    {
+        terminate();
         return GLFW_FALSE;
-    if (!_glfwPlatformCreateTls(&_glfw.errorSlot))
-        return GLFW_FALSE;
-    if (!_glfwPlatformCreateTls(&_glfw.contextSlot))
-        return GLFW_FALSE;
+    }
 
     _glfwPlatformSetTls(&_glfw.errorSlot, &_glfwMainThreadError);
 
@@ -220,7 +219,19 @@ GLFWAPI int glfwInit(void)
     _glfw.timer.offset = _glfwPlatformGetTimerValue();
 
     glfwDefaultWindowHints();
-    glfwUpdateGamepadMappings(_glfwDefaultMappings);
+
+    {
+        int i;
+
+        for (i = 0;  _glfwDefaultMappings[i];  i++)
+        {
+            if (!glfwUpdateGamepadMappings(_glfwDefaultMappings[i]))
+            {
+                terminate();
+                return GLFW_FALSE;
+            }
+        }
+    }
 
     return GLFW_TRUE;
 }
@@ -261,11 +272,11 @@ GLFWAPI void glfwInitHintString(int hint, const char* value)
         case GLFW_X11_WM_CLASS_NAME:
             strncpy(_glfwInitHints.x11.className, value,
                     sizeof(_glfwInitHints.x11.className) - 1);
-            break;
+            return;
         case GLFW_X11_WM_CLASS_CLASS:
             strncpy(_glfwInitHints.x11.classClass, value,
                     sizeof(_glfwInitHints.x11.classClass) - 1);
-            break;
+            return;
     }
 
     _glfwInputError(GLFW_INVALID_ENUM,

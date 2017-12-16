@@ -45,8 +45,8 @@ guide](http://www.glfw.org/docs/latest/moving.html) for moving to the GLFW
 ## Compiling GLFW
 
 GLFW itself requires only the headers and libraries for your window system.  It
-does not need the headers for any context creation API (WGL, GLX, EGL, NSGL) or
-rendering API (OpenGL, OpenGL ES, Vulkan) to enable support for them.
+does not need the headers for any context creation API (WGL, GLX, EGL, NSGL,
+OSMesa) or rendering API (OpenGL, OpenGL ES, Vulkan) to enable support for them.
 
 GLFW supports compilation on Windows with Visual C++ 2010 and later, MinGW and
 MinGW-w64, on macOS with Clang and on Linux and other Unix-like systems with GCC
@@ -69,7 +69,7 @@ and the API reference.
 ## Contributing to GLFW
 
 See the [contribution
-guide](https://github.com/glfw/glfw/blob/master/.github/CONTRIBUTING.md) for
+guide](https://github.com/glfw/glfw/blob/master/docs/CONTRIBUTING.md) for
 more information.
 
 
@@ -118,7 +118,7 @@ find that tool.
 
 Bugs are reported to our [issue tracker](https://github.com/glfw/glfw/issues).
 Please check the [contribution
-guide](https://github.com/glfw/glfw/blob/master/.github/CONTRIBUTING.md) for
+guide](https://github.com/glfw/glfw/blob/master/docs/CONTRIBUTING.md) for
 information on what to include when reporting a bug.
 
 
@@ -136,6 +136,8 @@ information on what to include when reporting a bug.
   gamepad mapping (#900)
 - Added `glfwGetGamepadState` function, `GLFW_GAMEPAD_*` and `GLFWgamepadstate`
   for retrieving gamepad input state (#900)
+- Added `glfwGetWindowContentScale` and `glfwGetMonitorContentScale` for
+  DPI-aware rendering (#235,#439,#677,#845,#898)
 - Added `glfwRequestWindowAttention` function for requesting attention from the
   user (#732,#988)
 - Added `glfwGetKeyScancode` function that allows retrieving platform dependent
@@ -146,13 +148,18 @@ information on what to include when reporting a bug.
 - Added `glfwGetJoystickHats` function for querying joystick hats
   (#889,#906,#934)
 - Added `glfwInitHint` and `glfwInitHintString` for setting initialization hints
+- Added `glfwGetWindowOpacity` and `glfwSetWindowOpacity` for controlling whole
+  window transparency (#1089)
 - Added `glfwGetX11SelectionString` and `glfwSetX11SelectionString`
   functions for accessing X11 primary selection (#894,#1056)
 - Added headless [OSMesa](http://mesa3d.org/osmesa.html) backend (#850)
 - Added definition of `GLAPIENTRY` to public header
+- Added `GLFW_TRANSPARENT_FRAMEBUFFER` window hint and attribute for controlling
+  per-pixel framebuffer transparency (#197,#663,#715,#723,#1078)
 - Added `GLFW_CENTER_CURSOR` window hint for controlling cursor centering
   (#749,#842)
 - Added `GLFW_JOYSTICK_HAT_BUTTONS` init hint (#889)
+- Added `GLFW_LOCK_KEY_MODS` input mode and `GLFW_MOD_*_LOCK` mod bits (#946)
 - Added macOS specific `GLFW_COCOA_RETINA_FRAMEBUFFER` window hint
 - Added macOS specific `GLFW_COCOA_FRAME_AUTOSAVE` window hint (#195)
 - Added macOS specific `GLFW_COCOA_GRAPHICS_SWITCHING` window hint (#377,#935)
@@ -164,6 +171,8 @@ information on what to include when reporting a bug.
 - Added `GLFW_OSMESA_CONTEXT_API` for creating OpenGL contexts with
   [OSMesa](https://www.mesa3d.org/osmesa.html) (#281)
 - Added `GenerateMappings.cmake` script for updating gamepad mappings
+- Deprecated window parameter of clipboard string functions
+- Deprecated charmods callback
 - Removed `GLFW_USE_RETINA` compile-time option
 - Removed `GLFW_USE_CHDIR` compile-time option
 - Removed `GLFW_USE_MENUBAR` compile-time option
@@ -174,6 +183,7 @@ information on what to include when reporting a bug.
           `vkGetInstanceProcAddr` when `_GLFW_VULKAN_STATIC` was enabled
 - Bugfix: Invalid library paths were used in test and example CMake files (#930)
 - Bugfix: The scancode for synthetic key release events was always zero
+- Bugfix: The generated Doxyfile did not handle paths with spaces (#1081)
 - [Win32] Added system error strings to relevant GLFW error descriptions (#733)
 - [Win32] Moved to `WM_INPUT` for disabled cursor mode motion input (#125)
 - [Win32] Removed XInput circular deadzone from joystick axis data (#1045)
@@ -195,6 +205,8 @@ information on what to include when reporting a bug.
 - [Win32] Bugfix: Disabled cursor mode prevented use of caption buttons
                   (#650,#1071)
 - [Win32] Bugfix: Returned key names did not match other platforms (#943)
+- [Win32] Bugfix: Undecorated windows did not maximize to workarea (#899)
+- [Win32] Bugfix: Window was resized twice when entering full screen (#1085)
 - [X11] Moved to XI2 `XI_RawMotion` for disable cursor mode motion input (#125)
 - [X11] Replaced `_GLFW_HAS_XF86VM` compile-time option with dynamic loading
 - [X11] Bugfix: `glfwGetVideoMode` would segfault on Cygwin/X
@@ -205,6 +217,10 @@ information on what to include when reporting a bug.
 - [X11] Bugfix: IM-duplicated key events would leak at low polling rates (#747)
 - [X11] Bugfix: Gamma ramp setting via RandR did not validate ramp size
 - [X11] Bugfix: Key name string encoding depended on current locale (#981,#983)
+- [X11] Bugfix: Incremental reading of selections was not supported (#275)
+- [X11] Bugfix: Selection I/O reported but did not support `COMPOUND_TEXT`
+- [X11] Bugfix: Latin-1 text read from selections was not converted to UTF-8
+- [X11] Bugfix: NVidia EGL would segfault if unloaded before closing the display
 - [Linux] Moved to evdev for joystick input (#906,#1005)
 - [Linux] Bugfix: Event processing did not detect joystick disconnection (#932)
 - [Linux] Bugfix: The joystick device path could be truncated (#1025)
@@ -231,6 +247,9 @@ information on what to include when reporting a bug.
 - [Cocoa] Bugfix: A hidden or disabled cursor would become visible when a user
                   notification was shown (#971,#1028)
 - [Cocoa] Bugfix: Some characters did not repeat due to Press and Hold (#1010)
+- [Cocoa] Bugfix: Window title was lost when full screen or undecorated (#1082)
+- [Cocoa] Bugfix: Window was resized twice when entering full screen (#1085)
+- [Cocoa] Bugfix: Duplicate size events were not filtered (#1085)
 - [WGL] Added support for `WGL_EXT_colorspace` for OpenGL ES contexts
 - [WGL] Added support for `WGL_ARB_create_context_no_error`
 - [GLX] Added support for `GLX_ARB_create_context_no_error`
@@ -285,6 +304,7 @@ skills.
  - Yaron Cohen-Tal
  - Omar Cornut
  - Andrew Corrigan
+ - Bailey Cosier
  - Noel Cower
  - Jason Daly
  - Jarrod Davis
@@ -293,6 +313,7 @@ skills.
  - Michael Dickens
  - Роман Донченко
  - Mario Dorn
+ - Wolfgang Draxinger
  - Jonathan Dummer
  - Ralph Eastwood
  - Fredrik Ehnbom
@@ -318,6 +339,7 @@ skills.
  - Erik S. V. Jansson
  - Toni Jovanoski
  - Arseny Kapoulkine
+ - Cem Karan
  - Osman Keskin
  - Josh Kilmer
  - Cameron King
@@ -359,6 +381,7 @@ skills.
  - Andri Pálsson
  - Peoro
  - Braden Pellett
+ - Christopher Pelloux
  - Arturo J. Pérez
  - Anthony Pesch
  - Orson Peters

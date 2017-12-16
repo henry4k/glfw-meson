@@ -237,8 +237,8 @@ static void createKeyTables(void)
 
     if (_glfw.x11.xkb.available)
     {
-        // Use XKB to determine physical key locations independently of the current
-        // keyboard layout
+        // Use XKB to determine physical key locations independently of the
+        // current keyboard layout
 
         char name[XkbKeyNameLength + 1];
         XkbDescPtr desc = XkbGetMap(_glfw.x11.display, 0, XkbUseCoreKbd);
@@ -651,6 +651,29 @@ static GLFWbool initExtensions(void)
             dlsym(_glfw.x11.x11xcb.handle, "XGetXCBConnection");
     }
 
+    _glfw.x11.xrender.handle = dlopen("libXrender.so.1", RTLD_LAZY | RTLD_GLOBAL);
+    if (_glfw.x11.xrender.handle)
+    {
+        _glfw.x11.xrender.QueryExtension = (PFN_XRenderQueryExtension)
+            dlsym(_glfw.x11.xrender.handle, "XRenderQueryExtension");
+        _glfw.x11.xrender.QueryVersion = (PFN_XRenderQueryVersion)
+            dlsym(_glfw.x11.xrender.handle, "XRenderQueryVersion");
+        _glfw.x11.xrender.FindVisualFormat = (PFN_XRenderFindVisualFormat)
+            dlsym(_glfw.x11.xrender.handle, "XRenderFindVisualFormat");
+
+        if (XRenderQueryExtension(_glfw.x11.display,
+                                  &_glfw.x11.xrender.errorBase,
+                                  &_glfw.x11.xrender.eventBase))
+        {
+            if (XRenderQueryVersion(_glfw.x11.display,
+                                    &_glfw.x11.xrender.major,
+                                    &_glfw.x11.xrender.minor))
+            {
+                _glfw.x11.xrender.available = GLFW_TRUE;
+            }
+        }
+    }
+
     // Update the key code LUT
     // FIXME: We should listen to XkbMapNotify events to track changes to
     // the keyboard mapping.
@@ -661,10 +684,7 @@ static GLFWbool initExtensions(void)
 
     // String format atoms
     _glfw.x11.NULL_ = XInternAtom(_glfw.x11.display, "NULL", False);
-    _glfw.x11.UTF8_STRING =
-        XInternAtom(_glfw.x11.display, "UTF8_STRING", False);
-    _glfw.x11.COMPOUND_STRING =
-        XInternAtom(_glfw.x11.display, "COMPOUND_STRING", False);
+    _glfw.x11.UTF8_STRING = XInternAtom(_glfw.x11.display, "UTF8_STRING", False);
     _glfw.x11.ATOM_PAIR = XInternAtom(_glfw.x11.display, "ATOM_PAIR", False);
 
     // Custom selection property atom
@@ -675,6 +695,7 @@ static GLFWbool initExtensions(void)
     _glfw.x11.TARGETS = XInternAtom(_glfw.x11.display, "TARGETS", False);
     _glfw.x11.MULTIPLE = XInternAtom(_glfw.x11.display, "MULTIPLE", False);
     _glfw.x11.PRIMARY = XInternAtom(_glfw.x11.display, "PRIMARY", False);
+    _glfw.x11.INCR = XInternAtom(_glfw.x11.display, "INCR", False);
     _glfw.x11.CLIPBOARD = XInternAtom(_glfw.x11.display, "CLIPBOARD", False);
 
     // Clipboard manager atoms
@@ -716,10 +737,56 @@ static GLFWbool initExtensions(void)
         XInternAtom(_glfw.x11.display, "_NET_WM_ICON_NAME", False);
     _glfw.x11.NET_WM_BYPASS_COMPOSITOR =
         XInternAtom(_glfw.x11.display, "_NET_WM_BYPASS_COMPOSITOR", False);
+    _glfw.x11.NET_WM_WINDOW_OPACITY =
+        XInternAtom(_glfw.x11.display, "_NET_WM_WINDOW_OPACITY", False);
     _glfw.x11.MOTIF_WM_HINTS =
         XInternAtom(_glfw.x11.display, "_MOTIF_WM_HINTS", False);
 
+    // The compositing manager selection name contains the screen number
+    {
+        char name[32];
+        snprintf(name, sizeof(name), "_NET_WM_CM_S%u", _glfw.x11.screen);
+        _glfw.x11.NET_WM_CM_Sx = XInternAtom(_glfw.x11.display, name, False);
+    }
+
     return GLFW_TRUE;
+}
+
+// Retrieve system content scale via folklore heuristics
+//
+static void getSystemContentScale(float* xscale, float* yscale)
+{
+    // NOTE: Default to the display-wide DPI as we don't currently have a policy
+    //       for which monitor a window is considered to be on
+    float xdpi = DisplayWidth(_glfw.x11.display, _glfw.x11.screen) *
+        25.4f / DisplayWidthMM(_glfw.x11.display, _glfw.x11.screen);
+    float ydpi = DisplayHeight(_glfw.x11.display, _glfw.x11.screen) *
+        25.4f / DisplayHeightMM(_glfw.x11.display, _glfw.x11.screen);
+
+    // NOTE: Basing the scale on Xft.dpi where available should provide the most
+    //       consistent user experience (matches Qt, Gtk, etc), although not
+    //       always the most accurate one
+    char* rms = XResourceManagerString(_glfw.x11.display);
+    if (rms)
+    {
+        XrmDatabase db = XrmGetStringDatabase(rms);
+        if (db)
+        {
+            XrmValue value;
+            char* type = NULL;
+
+            if (XrmGetResource(db, "Xft.dpi", "Xft.Dpi", &type, &value))
+            {
+                if (type && strcmp(type, "String") == 0)
+                    xdpi = ydpi = atof(value.addr);
+            }
+
+            XrmDestroyDatabase(db);
+        }
+    }
+
+    *xscale = xdpi / 96.f;
+    *yscale = ydpi / 96.f;
 }
 
 // Create a blank cursor for hidden and disabled cursor modes
@@ -840,6 +907,7 @@ int _glfwPlatformInit(void)
 #endif
 
     XInitThreads();
+    XrmInitialize();
 
     _glfw.x11.display = XOpenDisplay(NULL);
     if (!_glfw.x11.display)
@@ -862,11 +930,14 @@ int _glfwPlatformInit(void)
     _glfw.x11.screen = DefaultScreen(_glfw.x11.display);
     _glfw.x11.root = RootWindow(_glfw.x11.display, _glfw.x11.screen);
     _glfw.x11.context = XUniqueContext();
-    _glfw.x11.helperWindowHandle = createHelperWindow();
-    _glfw.x11.hiddenCursorHandle = createHiddenCursor();
+
+    getSystemContentScale(&_glfw.x11.contentScaleX, &_glfw.x11.contentScaleY);
 
     if (!initExtensions())
         return GLFW_FALSE;
+
+    _glfw.x11.helperWindowHandle = createHelperWindow();
+    _glfw.x11.hiddenCursorHandle = createHiddenCursor();
 
     if (XSupportsLocale())
     {
@@ -923,8 +994,6 @@ void _glfwPlatformTerminate(void)
         _glfw.x11.im = NULL;
     }
 
-    _glfwTerminateEGL();
-
     if (_glfw.x11.display)
     {
         XCloseDisplay(_glfw.x11.display);
@@ -955,8 +1024,9 @@ void _glfwPlatformTerminate(void)
         _glfw.x11.xinerama.handle = NULL;
     }
 
-    // NOTE: This needs to be done after XCloseDisplay, as libGL registers
-    //       cleanup callbacks that get called by it
+    // NOTE: These need to be unloaded after XCloseDisplay, as they register
+    //       cleanup callbacks that get called by that function
+    _glfwTerminateEGL();
     _glfwTerminateGLX();
 
 #if defined(__linux__)

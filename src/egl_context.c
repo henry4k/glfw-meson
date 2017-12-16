@@ -121,9 +121,25 @@ static GLFWbool chooseEGLConfig(const _GLFWctxconfig* ctxconfig,
             continue;
 
 #if defined(_GLFW_X11)
+        XVisualInfo vi = {0};
+
         // Only consider EGLConfigs with associated Visuals
-        if (!getEGLConfigAttrib(n, EGL_NATIVE_VISUAL_ID))
+        vi.visualid = getEGLConfigAttrib(n, EGL_NATIVE_VISUAL_ID);
+        if (!vi.visualid)
             continue;
+
+        if (desired->transparent)
+        {
+            int count;
+            XVisualInfo* vis = XGetVisualInfo(_glfw.x11.display,
+                                              VisualIDMask, &vi,
+                                              &count);
+            if (vis)
+            {
+                u->transparent = _glfwIsVisualTransparentX11(vis[0].visual);
+                XFree(vis);
+            }
+        }
 #endif // _GLFW_X11
 
         if (ctxconfig->client == GLFW_OPENGL_ES_API)
@@ -689,7 +705,8 @@ GLFWbool _glfwCreateContextEGL(_GLFWwindow* window,
 // Returns the Visual and depth of the chosen EGLConfig
 //
 #if defined(_GLFW_X11)
-GLFWbool _glfwChooseVisualEGL(const _GLFWctxconfig* ctxconfig,
+GLFWbool _glfwChooseVisualEGL(const _GLFWwndconfig* wndconfig,
+                              const _GLFWctxconfig* ctxconfig,
                               const _GLFWfbconfig* fbconfig,
                               Visual** visual, int* depth)
 {
