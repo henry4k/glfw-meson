@@ -14,6 +14,7 @@ option('glfw_use_msvc_runtime_library_dll',
     value: true)
 
 option('glfw_backend',
-    type: 'string',
-    choices: ['wayland', 'mir', 'osmesa', 'win32', 'cocoa', 'x11'],
-    description: 'Backend used for window creation')
+    type: 'combo',
+    description: 'Backend used for window creation',
+    value: 'auto',
+    choices: ['auto', 'wayland', 'mir', 'osmesa', 'win32', 'cocoa', 'x11'])
