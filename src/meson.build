@@ -6,8 +6,7 @@ dependencies = []
 
 sources = ['internal.h',
            'mappings.h',
-           #'glfw_config.h', # TODO: Funktioniert das?
-           '../include/GLFW/glfw3.h', # TODO: Funktioniert das?
+           '../include/GLFW/glfw3.h',
            '../include/GLFW/glfw3native.h',
            'context.c',
            'init.c',
@@ -34,7 +33,7 @@ foreach b : ['win32',
              'cocoa']
     conf_data.set('_GLFW_'+b.to_upper(), backend == b)
 endforeach
-conf_data.set('_GLFW_BUILD_DLL', false) # TODO
+conf_data.set('_GLFW_BUILD_DLL', get_option('default_library') == 'shared')
 conf_data.set('_GLFW_VULKAN_STATIC', get_option('glfw_vulkan_static'))
 conf_data.set('_GLFW_USE_HYBRID_HPG', get_option('glfw_use_hybrid_hpg'))
 conf_file = configure_file(configuration: conf_data,
@@ -54,8 +53,7 @@ sources += conf_file
 dependencies += threads_dep
 
 if host_system == 'windows'
-    sources += ['win32_thread.h',
-                'win32_thread.c']
+    sources += ['win32_thread.c']
 else
     sources += ['posix_thread.h',
                 'posix_thread.c']
@@ -115,7 +113,7 @@ elif backend == 'x11'
                 'glx_context.c']
 elif backend == 'cocoa'
     sources += ['nsgl_context.h',
-                'nsgl_context.c']
+                'nsgl_context.m']
 endif
 
 
